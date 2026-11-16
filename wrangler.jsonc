@@ -1,0 +1,5 @@
+{
+  "name": "kalender",
+  "main": "kalender-worker.js",
+  "compatibility_date": "2026-11-01"
+}
