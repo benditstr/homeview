@@ -158,7 +158,7 @@
       <label for="calUrls">iCal-Links (einer pro Zeile)</label>
       <textarea id="calUrls" placeholder="webcal://p00-caldav.icloud.com/published/2/…"></textarea>
       <label for="calProxy" style="margin-top:12px">Kalender-Proxy (Cloudflare Worker)</label>
-      <input id="calProxy" type="url" placeholder="https://kalender.deinname.workers.dev">
+      <input id="calProxy" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="kalender.deinname.workers.dev">
       <div class="hint">Die Links bleiben nur auf diesem iPad gespeichert, nicht auf GitHub.</div>
     </div>
 
@@ -173,7 +173,7 @@
     </div>
 
     <div class="btns">
-      <button type="submit" class="btn" value="cancel">Abbrechen</button>
+      <button type="button" class="btn" id="cancelBtn">Abbrechen</button>
       <button type="submit" class="btn primary" value="save" id="saveBtn">Speichern</button>
     </div>
   </form>
@@ -342,7 +342,7 @@ async function loadCalendar() {
   if (!urls.length || !settings.calProxy) {
     calEvents = null;
     $('calDot').className = 'dot';
-    $('calText').textContent = 'Kalender nicht eingerichtet';
+    $('calText').textContent = !urls.length && !settings.calProxy ? 'Kalender nicht eingerichtet' : !urls.length ? 'Kalender: Link fehlt' : 'Kalender: Proxy fehlt';
     renderCalendar();
     return;
   }
@@ -368,7 +368,7 @@ async function loadCalendar() {
 function renderCalendar() {
   const box = $('calendar');
   if (calEvents === null) {
-    box.innerHTML = `<div class="label">Termine</div><div class="empty">Tippe unten auf das Zahnrad, um deinen Kalender zu verbinden.</div>`;
+    box.innerHTML = `<div class="label">Termine</div><div class="empty">${(settings.calUrls || []).length && !settings.calProxy ? 'Kalender-Link ist da, aber die Proxy-Adresse fehlt noch (Zahnrad).' : !(settings.calUrls || []).length && settings.calProxy ? 'Proxy ist da, aber der Kalender-Link fehlt noch (Zahnrad).' : 'Tippe unten auf das Zahnrad, um deinen Kalender zu verbinden.'}</div>`;
     return;
   }
   const now = new Date();
@@ -426,6 +426,7 @@ function openSettings() {
   $('settings').showModal();
 }
 $('openSettings').addEventListener('click', openSettings);
+$('cancelBtn').addEventListener('click', () => $('settings').close('cancel'));
 document.addEventListener('click', (e) => {
   const a = e.target.closest('[data-setup]');
   if (a) { e.preventDefault(); openSettings(); }
@@ -436,7 +437,9 @@ $('settings').addEventListener('close', () => {
     label: $('scl' + i).value.trim(), name: $('scn' + i).value.trim(), icon: $('sci' + i).value,
   }));
   settings.calUrls = $('calUrls').value.split('\n').map((s) => s.trim()).filter(Boolean);
-  settings.calProxy = $('calProxy').value.trim();
+  let proxy = $('calProxy').value.trim().replace(/\s+/g, '');
+  if (proxy && !/^https?:\/\//i.test(proxy)) proxy = 'https://' + proxy;
+  settings.calProxy = proxy.replace(/\/+$/, '');
   const newClient = $('spClient').value.trim();
   if (newClient !== settings.spClient) sp.clearTokens();
   settings.spClient = newClient;
