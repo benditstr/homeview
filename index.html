@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Zuhause">
+<meta name="theme-color" content="#0B0E13">
+<title>Zuhause</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/ical.js@1.5.0/build/ical.min.js"></script>
+<style>
+  :root { --bg:#0B0E13; --card:#151A21; --line:#252C36; --text:#F2F4F7; --muted:#A7B0BE; --green:#7AD6A8; --orange:#FF8A4C; --red:#FF6B6B; --amber:#F5B83D; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: Inter, system-ui, -apple-system, sans-serif; overflow: hidden; -webkit-user-select: none; user-select: none; }
+  button, input, select { font-family: inherit; }
+  .app { height: 100%; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 16px;
+    padding: max(22px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left)); }
+  .card { background: var(--card); border-radius: 24px; padding: 18px 22px; }
+  .muted { color: var(--muted); }
+  .label { font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+  .empty { color: var(--muted); font-size: 15px; padding: 8px 0; }
+
+  /* Reihe 1 */
+  .top { display: grid; grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1.15fr); gap: 16px; }
+  .clock { display: flex; flex-direction: column; justify-content: center; }
+  .time { font-size: 86px; font-weight: 600; letter-spacing: -3px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .date { font-size: 18px; color: var(--muted); margin-top: 10px; }
+
+  .wx-now { display: flex; align-items: center; gap: 14px; }
+  .wx-temp { font-size: 44px; font-weight: 600; line-height: 1; margin-top: 4px; }
+  .wx-txt { font-size: 15px; color: var(--muted); margin-top: 4px; }
+  .wx-days { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+  .wx-days span { font-size: 13px; color: var(--muted); display: block; }
+  .wx-days b { font-size: 16px; display: block; margin-top: 4px; }
+
+  .cal-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .ev { display: grid; grid-template-columns: 4px 1fr; gap: 12px; }
+  .ev-bar { border-radius: 2px; }
+  .ev-title { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ev-when { font-size: 14px; color: var(--muted); margin-top: 1px; }
+  .ev-when b { color: var(--text); font-weight: 600; }
+
+  /* Reihe 2: Abfahrten */
+  .deps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; min-height: 0; }
+  .stop { display: flex; flex-direction: column; padding: 14px 18px; }
+  .stop-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .stop-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+  .row { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: none; }
+  .badge { height: 24px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #fff; }
+  .b-ubahn { background: #2F6BDB; } .b-tram { background: #D9443A; } .b-bus { background: #7A4FD8; }
+  .dir { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .min { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .min b { font-size: 17px; font-weight: 700; }
+  .min span { font-size: 12px; color: var(--muted); margin-left: 2px; }
+  .min.now b { color: var(--green); }
+  .late { font-size: 11px; font-weight: 600; color: var(--orange); margin-left: 4px; }
+  .first .min b { font-size: 20px; }
+
+  /* Spotify */
+  .music { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 24px; min-height: 0; overflow: hidden; }
+  .np { display: flex; gap: 18px; align-items: center; min-width: 0; }
+  .cover { width: 132px; height: 132px; border-radius: 16px; background: var(--line); object-fit: cover; flex-shrink: 0; }
+  .np-info { min-width: 0; flex: 1; }
+  .np-title { font-size: 21px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .np-artist { font-size: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .np-ctrl { display: flex; gap: 10px; margin-top: 14px; }
+  .cbtn { width: 52px; height: 52px; border-radius: 26px; border: none; background: var(--line); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .cbtn.main { background: #1ED760; color: #08140C; }
+  .music-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; overflow: hidden; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; max-width: 100%; }
+  .chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip.on { background: #1ED760; color: #08140C; border-color: #1ED760; }
+  .spbtn { height: 48px; padding: 0 20px; border-radius: 24px; border: none; background: #1ED760; color: #08140C; font-size: 16px; font-weight: 700; cursor: pointer; }
+
+  /* Reihe 3: Kurzbefehle */
+  .bottom { display: flex; gap: 12px; align-items: stretch; }
+  .sc { flex: 1; height: 68px; border-radius: 20px; background: var(--card); color: var(--text); text-decoration: none;
+    display: flex; align-items: center; gap: 14px; padding: 0 18px; font-size: 17px; font-weight: 600; border: 1px solid var(--line); }
+  .sc:active { background: var(--amber); color: #1C1405; }
+  .sc .ico { width: 40px; height: 40px; border-radius: 20px; background: var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sc.unset { color: var(--muted); border-style: dashed; }
+  .side { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 190px; padding: 0 4px; font-size: 13px; color: var(--muted); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 5px; background: var(--muted); margin-right: 6px; }
+  .dot.ok { background: var(--green); } .dot.err { background: var(--red); }
+  .gear { width: 68px; height: 68px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); color: var(--muted); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+  /* Einstellungen */
+  dialog { border: none; border-radius: 24px; background: var(--card); color: var(--text); width: min(640px, 92vw); max-height: 88vh; padding: 0; -webkit-user-select: text; user-select: text; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  .dlg { padding: 24px 26px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; max-height: 88vh; }
+  .dlg h3 { margin: 0; font-size: 22px; }
+  .dlg h4 { margin: 0 0 8px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .dlg label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  .dlg input, .dlg select, .dlg textarea { width: 100%; height: 46px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; padding: 0 12px; font-family: inherit; }
+  .dlg textarea { height: 90px; padding: 10px 12px; resize: vertical; }
+  .sc-edit { display: grid; grid-template-columns: 1fr 1fr 110px; gap: 8px; margin-bottom: 8px; }
+  .hint { font-size: 13px; color: var(--muted); line-height: 1.45; margin-top: 6px; }
+  .btns { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn { height: 48px; padding: 0 22px; border-radius: 14px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; background: var(--line); color: var(--text); }
+  .btn.primary { background: var(--text); color: var(--bg); }
+
+  @media (orientation: portrait) {
+    html, body { overflow: auto; }
+    .app { height: auto; }
+    .top { grid-template-columns: 1fr 1fr; }
+    .top .cal { grid-column: 1 / -1; }
+    .deps, .music { grid-template-columns: 1fr; }
+    .bottom { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="card clock">
+      <div class="time" id="time">--:--</div>
+      <div class="date" id="date"></div>
+    </div>
+    <div class="card" id="weather"><div class="empty">Wetter lädt …</div></div>
+    <div class="card cal" id="calendar"><div class="label">Termine</div><div class="empty">Kalender lädt …</div></div>
+  </div>
+
+  <div class="deps" id="departures"></div>
+
+  <div class="card music" id="music"><div class="empty">Spotify …</div></div>
+
+  <div class="bottom">
+    <div id="shortcuts" style="display:contents"></div>
+    <div class="side">
+      <span><span class="dot" id="depDot"></span><span id="depText">Abfahrten laden …</span></span>
+      <span><span class="dot" id="calDot"></span><span id="calText">Kalender</span></span>
+    </div>
+    <button type="button" class="gear" id="openSettings" aria-label="Einstellungen">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+</div>
+
+<dialog id="settings">
+  <form class="dlg" method="dialog" id="settingsForm">
+    <h3>Einstellungen</h3>
+
+    <div>
+      <h4>Kurzbefehle</h4>
+      <div id="scEdit"></div>
+      <div class="hint">„Name des Kurzbefehls“ muss genau so heißen wie in der Kurzbefehle-App. Tipp: Mit der Aktion „Steuern“ (Home) kannst du so auch deine Hue-Szenen schalten.</div>
+    </div>
+
+    <div>
+      <h4>Kalender</h4>
+      <label for="calUrls">iCal-Links (einer pro Zeile)</label>
+      <textarea id="calUrls" placeholder="webcal://p00-caldav.icloud.com/published/2/…"></textarea>
+      <label for="calProxy" style="margin-top:12px">Kalender-Proxy (Cloudflare Worker)</label>
+      <input id="calProxy" type="url" placeholder="https://kalender.deinname.workers.dev">
+      <div class="hint">Die Links bleiben nur auf diesem iPad gespeichert, nicht auf GitHub.</div>
+    </div>
+
+    <div>
+      <h4>Spotify</h4>
+      <label for="spClient">Client ID (aus dem Spotify Developer Dashboard)</label>
+      <input id="spClient" placeholder="z. B. 3f2a…" autocapitalize="off" autocomplete="off">
+      <div class="hint">Redirect URI, die du im Dashboard einträgst: <b id="spRedirect"></b></div>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button type="button" class="btn" id="spLogout">Spotify trennen</button>
+      </div>
+    </div>
+
+    <div class="btns">
+      <button type="submit" class="btn" value="cancel">Abbrechen</button>
+      <button type="submit" class="btn primary" value="save" id="saveBtn">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* ================== EINSTELLUNGEN ================== */
+const CONFIG = {
+  stops: [
+    { id: 340, name: 'Rennweg',       product: 'ubahn', short: 'U-Bahn' },
+    { id: 332, name: 'Rathenauplatz', product: 'tram',  short: 'Tram' },
+    { id: 154, name: 'Laufer Tor',    product: 'bus',   short: 'Bus' },
+  ],
+  departuresPerStop: 4,
+  departuresRefreshSec: 30,
+  weather: { lat: 49.46, lon: 11.09 },
+  weatherRefreshMin: 15,
+  calendarDays: 7,
+  calendarMaxEvents: 3,
+  calendarRefreshMin: 10,
+  calendarColors: ['#5B9BFF', '#F5B83D', '#7AD6A8', '#FF8A4C', '#C38BFF'],
+};
+/* =================================================== */
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const svg = (p, size, color = 'currentColor', sw = 1.6) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+
+/* ---------- Gespeicherte Einstellungen (nur auf diesem Gerät) ---------- */
+const DEFAULT_SETTINGS = {
+  shortcuts: [
+    { label: '', name: '', icon: 'bulb' },
+    { label: '', name: '', icon: 'moon' },
+    { label: '', name: '', icon: 'music' },
+  ],
+  calUrls: [],
+  calProxy: '',
+  spClient: '',
+};
+function loadSettings() {
+  try { return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem('dash.settings') || '{}')); }
+  catch (e) { return { ...DEFAULT_SETTINGS }; }
+}
+let settings = loadSettings();
+function saveSettings() { try { localStorage.setItem('dash.settings', JSON.stringify(settings)); } catch (e) {} }
+
+/* ---------- Uhr ---------- */
+function tickClock() {
+  const d = new Date();
+  $('time').textContent = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  $('date').textContent = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+async function keepAwake() { try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
+keepAwake();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { keepAwake(); loadDepartures(); loadCalendar(); } });
+
+/* ---------- Wetter ---------- */
+const WX = {
+  0: ['Klar', 'sun'], 1: ['Überwiegend klar', 'sun'], 2: ['Teils bewölkt', 'cloudsun'], 3: ['Bewölkt', 'cloud'],
+  45: ['Nebel', 'fog'], 48: ['Nebel', 'fog'], 51: ['Niesel', 'rain'], 53: ['Niesel', 'rain'], 55: ['Niesel', 'rain'],
+  56: ['Eisniesel', 'rain'], 57: ['Eisniesel', 'rain'], 61: ['Leichter Regen', 'rain'], 63: ['Regen', 'rain'], 65: ['Starker Regen', 'rain'],
+  66: ['Eisregen', 'rain'], 67: ['Eisregen', 'rain'], 71: ['Leichter Schnee', 'snow'], 73: ['Schnee', 'snow'], 75: ['Starker Schnee', 'snow'],
+  77: ['Schnee', 'snow'], 80: ['Schauer', 'rain'], 81: ['Schauer', 'rain'], 82: ['Starke Schauer', 'rain'],
+  85: ['Schneeschauer', 'snow'], 86: ['Schneeschauer', 'snow'], 95: ['Gewitter', 'storm'], 96: ['Gewitter', 'storm'], 99: ['Gewitter', 'storm'],
+};
+const ICON = {
+  sun: '<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  cloudsun: '<path d="M8 4.5a4 4 0 0 1 6.8 2.3"/><path d="M8 19h9a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6 1.2A3 3 0 0 0 8 19z"/>',
+  cloud: '<path d="M7 18h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.1 11.1 3.5 3.5 0 0 0 7 18z"/>',
+  fog: '<path d="M4 10h16M4 14h16M6 18h12M7 6h10"/>',
+  rain: '<path d="M7 14h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.1 7.1 3.5 3.5 0 0 0 7 14z"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/>',
+  snow: '<path d="M7 14h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.1 7.1 3.5 3.5 0 0 0 7 14z"/><path d="M8 18h.01M12 18h.01M16 18h.01M10 21h.01M14 21h.01"/>',
+  storm: '<path d="M7 14h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.1 7.1 3.5 3.5 0 0 0 7 14z"/><path d="M12 14l-2 4h4l-2 4"/>',
+};
+
+async function loadWeather() {
+  try {
+    const { lat, lon } = CONFIG.weather;
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Europe%2FBerlin&forecast_days=5`);
+    const w = await r.json();
+    const [txt, ico] = WX[w.current.weather_code] || ['–', 'cloud'];
+    const days = w.daily.time.slice(1, 5).map((t, i) => {
+      const k = i + 1;
+      const day = new Date(t + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '');
+      return `<div><span>${day}</span><b>${Math.round(w.daily.temperature_2m_max[k])}°</b></div>`;
+    }).join('');
+    $('weather').innerHTML = `
+      <div class="wx-now">
+        ${svg(ICON[ico], 60, '#C9D2DF', 1.4)}
+        <div>
+          <div class="label">Draußen</div>
+          <div class="wx-temp">${Math.round(w.current.temperature_2m)}°</div>
+          <div class="wx-txt">${txt} · ${Math.round(w.daily.temperature_2m_max[0])}° / ${Math.round(w.daily.temperature_2m_min[0])}°</div>
+        </div>
+      </div>
+      <div class="wx-days">${days}</div>`;
+  } catch (e) {
+    $('weather').innerHTML = '<div class="empty">Wetter gerade nicht erreichbar</div>';
+  }
+}
+loadWeather();
+setInterval(loadWeather, CONFIG.weatherRefreshMin * 60000);
+
+/* ---------- Kalender (iCal über eigenen Proxy) ---------- */
+function registerTimezones(comp) {
+  comp.getAllSubcomponents('vtimezone').forEach((vtz) => {
+    try {
+      const tz = new ICAL.Timezone(vtz);
+      if (!ICAL.TimezoneService.has(tz.tzid)) ICAL.TimezoneService.register(tz.tzid, tz);
+    } catch (e) {}
+  });
+}
+
+function eventsFromIcs(text, color, from, to) {
+  const comp = new ICAL.Component(ICAL.parse(text));
+  registerTimezones(comp);
+  const vevents = comp.getAllSubcomponents('vevent');
+  const masters = {};
+  const exceptions = [];
+  vevents.forEach((v) => {
+    const ev = new ICAL.Event(v);
+    if (ev.isRecurrenceException()) exceptions.push(ev);
+    else masters[ev.uid] = ev;
+  });
+  exceptions.forEach((ex) => { if (masters[ex.uid]) masters[ex.uid].relateException(ex); });
+
+  const out = [];
+  Object.values(masters).forEach((ev) => {
+    if (v_status(ev) === 'CANCELLED') return;
+    if (ev.isRecurring()) {
+      const it = ev.iterator();
+      let next, guard = 0;
+      while ((next = it.next()) && guard++ < 2000) {
+        const d = ev.getOccurrenceDetails(next);
+        const s = d.startDate.toJSDate();
+        if (s > to) break;
+        const e = d.endDate.toJSDate();
+        if (e > from) out.push({ title: d.item.summary, start: s, end: e, allDay: d.startDate.isDate, color });
+      }
+    } else {
+      const s = ev.startDate.toJSDate();
+      const e = (ev.endDate || ev.startDate).toJSDate();
+      if (e > from && s < to) out.push({ title: ev.summary, start: s, end: e, allDay: ev.startDate.isDate, color });
+    }
+  });
+  return out;
+}
+function v_status(ev) { try { return (ev.component.getFirstPropertyValue('status') || '').toUpperCase(); } catch (e) { return ''; } }
+
+function dayLabel(d) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const x = new Date(d); x.setHours(0, 0, 0, 0);
+  const diff = Math.round((x - today) / 86400000);
+  if (diff <= 0) return 'Heute';
+  if (diff === 1) return 'Morgen';
+  return x.toLocaleDateString('de-DE', { weekday: 'long' });
+}
+
+let calEvents = null;
+
+async function loadCalendar() {
+  const urls = (settings.calUrls || []).filter(Boolean);
+  if (!urls.length || !settings.calProxy) {
+    calEvents = null;
+    $('calDot').className = 'dot';
+    $('calText').textContent = 'Kalender nicht eingerichtet';
+    renderCalendar();
+    return;
+  }
+  const from = new Date();
+  const to = new Date(Date.now() + CONFIG.calendarDays * 86400000);
+  try {
+    const lists = await Promise.all(urls.map(async (u, i) => {
+      const proxied = settings.calProxy.replace(/\/$/, '') + '/?url=' + encodeURIComponent(u.trim());
+      const r = await fetch(proxied);
+      if (!r.ok) throw new Error('Kalender ' + r.status);
+      return eventsFromIcs(await r.text(), CONFIG.calendarColors[i % CONFIG.calendarColors.length], from, to);
+    }));
+    calEvents = lists.flat().sort((a, b) => a.start - b.start);
+    $('calDot').className = 'dot ok';
+    $('calText').textContent = 'Kalender aktuell';
+  } catch (e) {
+    $('calDot').className = 'dot err';
+    $('calText').textContent = 'Kalender nicht erreichbar';
+  }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const box = $('calendar');
+  if (calEvents === null) {
+    box.innerHTML = `<div class="label">Termine</div><div class="empty">Tippe unten auf das Zahnrad, um deinen Kalender zu verbinden.</div>`;
+    return;
+  }
+  const now = new Date();
+  const list = calEvents.filter((e) => e.end > now).slice(0, CONFIG.calendarMaxEvents);
+  const fmt = (d) => d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  box.innerHTML = `<div class="label">Termine</div>` + (list.length ? `<div class="cal-list">${list.map((e) => {
+    const running = !e.allDay && e.start <= now;
+    const when = e.allDay ? 'ganztägig' : running ? `läuft bis ${fmt(e.end)}` : `${fmt(e.start)}–${fmt(e.end)}`;
+    return `<div class="ev"><div class="ev-bar" style="background:${e.color}"></div><div>
+      <div class="ev-title">${esc(e.title || 'Termin')}</div>
+      <div class="ev-when"><b>${dayLabel(e.start)}</b> · ${when}</div></div></div>`;
+  }).join('')}</div>` : `<div class="empty">Nichts in den nächsten ${CONFIG.calendarDays} Tagen</div>`);
+}
+
+loadCalendar();
+setInterval(loadCalendar, CONFIG.calendarRefreshMin * 60000);
+setInterval(renderCalendar, 60000);
+
+/* ---------- Kurzbefehle ---------- */
+const SC_ICONS = {
+  bulb: ['Licht', '<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>'],
+  moon: ['Mond', '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>'],
+  music: ['Musik', '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'],
+  home: ['Haus', '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>'],
+  bolt: ['Blitz', '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'],
+  coffee: ['Kaffee', '<path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 9h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 2v3M12 2v3"/>'],
+  tv: ['TV', '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>'],
+  run: ['Sport', '<circle cx="14" cy="4" r="2"/><path d="M6 21l3-6 3 2 2-5 4 3"/><path d="M8 11l3-3 3 2"/>'],
+};
+
+function renderShortcuts() {
+  $('shortcuts').innerHTML = settings.shortcuts.map((s, i) => {
+    const ic = (SC_ICONS[s.icon] || SC_ICONS.bolt)[1];
+    if (!s.name) {
+      return `<a class="sc unset" href="#" data-setup="1"><span class="ico">${svg(ic, 22)}</span>+ Kurzbefehl ${i + 1}</a>`;
+    }
+    return `<a class="sc" href="shortcuts://run-shortcut?name=${encodeURIComponent(s.name)}"><span class="ico">${svg(ic, 22)}</span>${esc(s.label || s.name)}</a>`;
+  }).join('');
+}
+renderShortcuts();
+
+/* ---------- Einstellungen-Dialog ---------- */
+function openSettings() {
+  const opts = (sel) => Object.entries(SC_ICONS).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v[0]}</option>`).join('');
+  $('scEdit').innerHTML = settings.shortcuts.map((s, i) => `
+    <div class="sc-edit">
+      <div><label for="scl${i}">Beschriftung ${i + 1}</label><input id="scl${i}" value="${esc(s.label)}" placeholder="z. B. Licht aus"></div>
+      <div><label for="scn${i}">Name des Kurzbefehls</label><input id="scn${i}" value="${esc(s.name)}" placeholder="z. B. Alles aus" autocapitalize="off"></div>
+      <div><label for="sci${i}">Symbol</label><select id="sci${i}">${opts(s.icon)}</select></div>
+    </div>`).join('');
+  $('calUrls').value = (settings.calUrls || []).join('\n');
+  $('calProxy').value = settings.calProxy || '';
+  $('spClient').value = settings.spClient || '';
+  $('spRedirect').textContent = SP_REDIRECT;
+  $('settings').showModal();
+}
+$('openSettings').addEventListener('click', openSettings);
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-setup]');
+  if (a) { e.preventDefault(); openSettings(); }
+});
+$('settings').addEventListener('close', () => {
+  if ($('settings').returnValue !== 'save') return;
+  settings.shortcuts = settings.shortcuts.map((_, i) => ({
+    label: $('scl' + i).value.trim(), name: $('scn' + i).value.trim(), icon: $('sci' + i).value,
+  }));
+  settings.calUrls = $('calUrls').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  settings.calProxy = $('calProxy').value.trim();
+  const newClient = $('spClient').value.trim();
+  if (newClient !== settings.spClient) sp.clearTokens();
+  settings.spClient = newClient;
+  saveSettings();
+  renderShortcuts();
+  loadCalendar();
+  sp.refreshAll();
+});
+
+/* ---------- Spotify (Web API, Login per PKCE – kein Server nötig) ---------- */
+const SP_REDIRECT = location.origin + location.pathname;
+const SP_SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private';
+const SP_ICON = {
+  prev: '<path d="M19 20 9 12l10-8z"/><path d="M5 19V5"/>',
+  next: '<path d="m5 4 10 8-10 8z"/><path d="M19 5v14"/>',
+  play: '<path d="M7 4v16l13-8z" fill="currentColor"/>',
+  pause: '<path d="M7 4h3v16H7zM14 4h3v16h-3z" fill="currentColor"/>',
+  speaker: '<rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="14" r="4"/><path d="M12 6h.01"/>',
+  phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
+  computer: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
+  list: '<path d="M4 6h12M4 12h12M4 18h8"/><path d="M18 14v6"/><circle cx="16" cy="20" r="2"/>',
+};
+
+const sp = {
+  tokens: null, player: null, devices: [], playlists: [], error: '', selectedDevice: null,
+
+  loadTokens() { try { this.tokens = JSON.parse(localStorage.getItem('dash.spotify') || 'null'); } catch (e) { this.tokens = null; } },
+  saveTokens() { try { localStorage.setItem('dash.spotify', JSON.stringify(this.tokens)); } catch (e) {} },
+  clearTokens() { this.tokens = null; this.player = null; this.devices = []; this.playlists = []; try { localStorage.removeItem('dash.spotify'); } catch (e) {} },
+
+  async login() {
+    if (!settings.spClient) { openSettings(); return; }
+    const verifier = Array.from(crypto.getRandomValues(new Uint8Array(48)), (b) => ('0' + b.toString(16)).slice(-2)).join('');
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    const challenge = btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    localStorage.setItem('dash.spotify.verifier', verifier);
+    const p = new URLSearchParams({
+      response_type: 'code', client_id: settings.spClient, scope: SP_SCOPES,
+      redirect_uri: SP_REDIRECT, code_challenge_method: 'S256', code_challenge: challenge,
+    });
+    location.href = 'https://accounts.spotify.com/authorize?' + p;
+  },
+
+  async tokenRequest(body) {
+    const r = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: settings.spClient, ...body }),
+    });
+    if (!r.ok) throw new Error('Token ' + r.status);
+    const j = await r.json();
+    this.tokens = {
+      access: j.access_token,
+      refresh: j.refresh_token || this.tokens?.refresh,
+      exp: Date.now() + (j.expires_in - 60) * 1000,
+    };
+    this.saveTokens();
+  },
+
+  async handleRedirect() {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('code') && !q.has('error')) return;
+    const code = q.get('code');
+    history.replaceState(null, '', location.pathname);
+    if (!code) { this.error = 'Spotify-Login abgebrochen'; return; }
+    try {
+      await this.tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: SP_REDIRECT, code_verifier: localStorage.getItem('dash.spotify.verifier') || '' });
+    } catch (e) { this.error = 'Spotify-Login fehlgeschlagen'; }
+    localStorage.removeItem('dash.spotify.verifier');
+  },
+
+  async api(path, opts = {}) {
+    if (!this.tokens) throw new Error('nicht verbunden');
+    if (Date.now() > this.tokens.exp) {
+      try { await this.tokenRequest({ grant_type: 'refresh_token', refresh_token: this.tokens.refresh }); }
+      catch (e) { this.clearTokens(); renderMusic(); throw e; }
+    }
+    const r = await fetch('https://api.spotify.com/v1' + path, {
+      ...opts,
+      headers: { Authorization: 'Bearer ' + this.tokens.access, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    });
+    if (r.status === 204 || r.status === 202) return null;
+    const text = await r.text();
+    const j = text ? JSON.parse(text) : null;
+    if (!r.ok) {
+      const reason = j?.error?.reason;
+      if (reason === 'PREMIUM_REQUIRED') throw new Error('Dafür braucht es Spotify Premium');
+      if (reason === 'NO_ACTIVE_DEVICE' || r.status === 404) throw new Error('Kein aktives Gerät – wähle oben eins aus');
+      throw new Error(j?.error?.message || 'Spotify-Fehler ' + r.status);
+    }
+    return j;
+  },
+
+  async refreshPlayer() {
+    if (!this.tokens) return;
+    try {
+      const [player, dev] = await Promise.all([this.api('/me/player'), this.api('/me/player/devices')]);
+      this.player = player;
+      this.devices = dev?.devices || [];
+      if (player?.device?.id) this.selectedDevice = player.device.id;
+      if (!this.devices.find((d) => d.id === this.selectedDevice)) this.selectedDevice = this.devices[0]?.id || null;
+      this.error = '';
+    } catch (e) { this.error = e.message; }
+    renderMusic();
+  },
+
+  async refreshPlaylists() {
+    if (!this.tokens) return;
+    try { this.playlists = (await this.api('/me/playlists?limit=8'))?.items?.filter(Boolean) || []; }
+    catch (e) { this.playlists = []; }
+    renderMusic();
+  },
+
+  refreshAll() { if (this.tokens) { this.refreshPlayer(); this.refreshPlaylists(); } else renderMusic(); },
+
+  async act(fn) {
+    try { await fn(); this.error = ''; } catch (e) { this.error = e.message; renderMusic(); }
+    setTimeout(() => this.refreshPlayer(), 600);
+  },
+
+  togglePlay() {
+    const playing = this.player?.is_playing;
+    const dev = this.player?.device?.id ? '' : (this.selectedDevice ? '?device_id=' + this.selectedDevice : '');
+    return this.act(() => this.api('/me/player/' + (playing ? 'pause' : 'play') + dev, { method: 'PUT' }));
+  },
+  next() { return this.act(() => this.api('/me/player/next', { method: 'POST' })); },
+  prev() { return this.act(() => this.api('/me/player/previous', { method: 'POST' })); },
+  transfer(id) {
+    this.selectedDevice = id; renderMusic();
+    return this.act(() => this.api('/me/player', { method: 'PUT', body: JSON.stringify({ device_ids: [id], play: true }) }));
+  },
+  playList(uri) {
+    const dev = this.selectedDevice ? '?device_id=' + this.selectedDevice : '';
+    return this.act(() => this.api('/me/player/play' + dev, { method: 'PUT', body: JSON.stringify({ context_uri: uri }) }));
+  },
+};
+
+function devIcon(type) {
+  const t = (type || '').toLowerCase();
+  if (t === 'smartphone' || t === 'tablet') return SP_ICON.phone;
+  if (t === 'computer') return SP_ICON.computer;
+  if (t === 'tv' || t === 'castvideo' || t === 'stb') return SP_ICON.tv;
+  return SP_ICON.speaker;
+}
+
+function renderMusic() {
+  const box = $('music');
+  if (!settings.spClient || !sp.tokens) {
+    box.innerHTML = `
+      <div class="np">
+        <div class="cover" style="display:flex;align-items:center;justify-content:center;color:#1ED760">${svg(SC_ICONS.music[1], 48, '#1ED760', 1.4)}</div>
+        <div class="np-info">
+          <div class="label">Spotify</div>
+          <div class="np-title">Musik direkt vom Dashboard</div>
+          <div class="np-artist">${settings.spClient ? 'Einmal anmelden, dann geht’s los.' : 'Erst im Zahnrad die Client ID eintragen.'}</div>
+          <div class="np-ctrl"><button type="button" class="spbtn" data-sp="login">${settings.spClient ? 'Mit Spotify verbinden' : 'Einrichten'}</button></div>
+          ${sp.error ? `<div class="hint" style="color:var(--orange)">${esc(sp.error)}</div>` : ''}
+        </div>
+      </div><div></div>`;
+    return;
+  }
+  const item = sp.player?.item;
+  const img = item?.album?.images?.[1]?.url || item?.album?.images?.[0]?.url || item?.images?.[0]?.url || '';
+  const playing = !!sp.player?.is_playing;
+  const devName = sp.player?.device?.name;
+  const devices = sp.devices.map((d) => `
+    <button type="button" class="chip ${d.id === sp.selectedDevice ? 'on' : ''}" data-sp="dev" data-id="${esc(d.id)}">${svg(devIcon(d.type), 18)}<span>${esc(d.name)}</span></button>`).join('');
+  const lists = sp.playlists.slice(0, 6).map((p) => `
+    <button type="button" class="chip" data-sp="list" data-uri="${esc(p.uri)}">${svg(SP_ICON.list, 18)}<span>${esc(p.name)}</span></button>`).join('');
+  box.innerHTML = `
+    <div class="np">
+      ${img ? `<img class="cover" src="${esc(img)}" alt="">` : `<div class="cover"></div>`}
+      <div class="np-info">
+        <div class="label">${devName ? 'Läuft auf ' + esc(devName) : 'Spotify'}</div>
+        <div class="np-title">${esc(item?.name || 'Gerade läuft nichts')}</div>
+        <div class="np-artist">${esc(item?.artists?.map((a) => a.name).join(', ') || item?.show?.name || 'Wähle ein Gerät und eine Playlist')}</div>
+        <div class="np-ctrl">
+          <button type="button" class="cbtn" data-sp="prev" aria-label="Zurück">${svg(SP_ICON.prev, 20)}</button>
+          <button type="button" class="cbtn main" data-sp="play" aria-label="${playing ? 'Pause' : 'Abspielen'}">${svg(playing ? SP_ICON.pause : SP_ICON.play, 22)}</button>
+          <button type="button" class="cbtn" data-sp="next" aria-label="Weiter">${svg(SP_ICON.next, 20)}</button>
+        </div>
+      </div>
+    </div>
+    <div class="music-side">
+      <div class="label">Abspielen auf</div>
+      <div class="chips">${devices || '<div class="empty" style="padding:0">Keine Geräte gefunden – öffne Spotify auf dem Gerät oder weck den Lautsprecher auf.</div>'}</div>
+      <div class="label" style="margin-top:4px">Playlists</div>
+      <div class="chips">${lists || '<div class="empty" style="padding:0">Keine Playlists</div>'}</div>
+      ${sp.error ? `<div class="hint" style="color:var(--orange);margin:0">${esc(sp.error)}</div>` : ''}
+    </div>`;
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sp]');
+  if (!b) return;
+  const a = b.dataset.sp;
+  if (a === 'login') sp.login();
+  else if (a === 'play') sp.togglePlay();
+  else if (a === 'next') sp.next();
+  else if (a === 'prev') sp.prev();
+  else if (a === 'dev') sp.transfer(b.dataset.id);
+  else if (a === 'list') sp.playList(b.dataset.uri);
+});
+$('spLogout').addEventListener('click', () => { sp.clearTokens(); renderMusic(); });
+
+(async () => {
+  sp.loadTokens();
+  await sp.handleRedirect();
+  sp.refreshAll();
+  setInterval(() => sp.refreshPlayer(), 5000);
+  setInterval(() => sp.refreshPlaylists(), 30 * 60000);
+})();
+
+/* ---------- Abfahrten ---------- */
+let depData = [];
+let lastOk = null;
+
+async function loadDepartures() {
+  try {
+    depData = await Promise.all(CONFIG.stops.map(async (s) => {
+      const r = await fetch(`https://start.vag.de/dm/api/abfahrten.json/vgn/${s.id}?product=${s.product}&limitcount=${CONFIG.departuresPerStop + 4}`);
+      if (!r.ok) throw new Error('VAG ' + r.status);
+      const j = await r.json();
+      return { ...s, list: j.Abfahrten || [] };
+    }));
+    lastOk = new Date();
+    $('depDot').className = 'dot ok';
+  } catch (e) {
+    $('depDot').className = 'dot err';
+  }
+  renderDepartures();
+}
+
+function renderDepartures() {
+  const now = Date.now();
+  const err = $('depDot').className.includes('err');
+  if (lastOk) {
+    const t = lastOk.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    $('depText').textContent = err ? `VAG offline · Stand ${t}` : `Abfahrten live · ${t}`;
+  } else if (err) {
+    $('depText').textContent = 'VAG nicht erreichbar';
+  }
+  if (!depData.length) return;
+  $('departures').innerHTML = depData.map((s) => {
+    const rows = s.list
+      .map((a) => {
+        const ist = new Date(a.AbfahrtszeitIst || a.AbfahrtszeitSoll).getTime();
+        const soll = new Date(a.AbfahrtszeitSoll).getTime();
+        return { a, min: Math.floor((ist - now) / 60000), late: Math.round((ist - soll) / 60000) };
+      })
+      .filter((x) => x.min >= 0)
+      .slice(0, CONFIG.departuresPerStop)
+      .map(({ a, min, late }, i) => `
+        <div class="row ${i === 0 ? 'first' : ''}">
+          <div class="badge b-${s.product}">${esc(a.Linienname)}</div>
+          <div class="dir">${esc(a.Richtungstext)}</div>
+          <div class="min ${min === 0 ? 'now' : ''}">${min === 0 ? '<b>jetzt</b>' : `<b>${min}</b><span>Min</span>`}${late > 0 ? `<span class="late">+${late}</span>` : ''}</div>
+        </div>`).join('');
+    return `
+      <div class="card stop">
+        <div class="stop-head"><h2>${esc(s.name)}</h2><span class="label">${esc(s.short)}</span></div>
+        ${rows || '<div class="empty">Gerade keine Abfahrten</div>'}
+      </div>`;
+  }).join('');
+}
+
+loadDepartures();
+setInterval(loadDepartures, CONFIG.departuresRefreshSec * 1000);
+setInterval(renderDepartures, 10000);
+
+/* Einmal pro Nacht neu laden */
+setInterval(() => { const d = new Date(); if (d.getHours() === 4 && d.getMinutes() === 0) location.reload(); }, 60000);
+</script>
+</body>
+</html>
