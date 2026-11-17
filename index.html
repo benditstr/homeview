@@ -77,6 +77,18 @@
   .chip { height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; max-width: 100%; }
   .chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chip.on { background: #1ED760; color: #08140C; border-color: #1ED760; }
+  .vol { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .vol input[type=range] { flex: 1; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; background: var(--line); outline: none; }
+  .vol input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; border-radius: 14px; background: var(--text); border: none; }
+  .vol .vbtn { width: 40px; height: 40px; border-radius: 20px; border: none; background: var(--line); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+  .vol .vnum { width: 40px; text-align: right; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chip.liked { border-color: #1ED760; }
+  .chip.more { color: var(--muted); }
+  .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .pl { border: none; background: var(--bg); color: var(--text); border-radius: 16px; padding: 10px; text-align: left; cursor: pointer; font-family: inherit; }
+  .pl img, .pl .ph { width: 100%; aspect-ratio: 1; border-radius: 10px; object-fit: cover; background: var(--line); display: flex; align-items: center; justify-content: center; }
+  .pl span { display: block; font-size: 15px; font-weight: 600; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
   .spbtn { height: 48px; padding: 0 20px; border-radius: 24px; border: none; background: #1ED760; color: #08140C; font-size: 16px; font-weight: 700; cursor: pointer; }
 
   /* Reihe 3: Kurzbefehle */
@@ -177,6 +189,16 @@
       <button type="submit" class="btn primary" value="save" id="saveBtn">Speichern</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="spLists">
+  <div class="dlg">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>Was soll laufen?</h3>
+      <button type="button" class="btn" id="spListsClose">Schließen</button>
+    </div>
+    <div class="pl-grid" id="spListsGrid"></div>
+  </div>
 </dialog>
 
 <script>
@@ -451,7 +473,7 @@ $('settings').addEventListener('close', () => {
 
 /* ---------- Spotify (Web API, Login per PKCE – kein Server nötig) ---------- */
 const SP_REDIRECT = location.origin + location.pathname;
-const SP_SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private';
+const SP_SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private user-library-read';
 const SP_ICON = {
   prev: '<path d="M19 20 9 12l10-8z"/><path d="M5 19V5"/>',
   next: '<path d="m5 4 10 8-10 8z"/><path d="M19 5v14"/>',
@@ -462,10 +484,16 @@ const SP_ICON = {
   computer: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
   tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
   list: '<path d="M4 6h12M4 12h12M4 18h8"/><path d="M18 14v6"/><circle cx="16" cy="20" r="2"/>',
+  heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="currentColor"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
+  volLow: '<path d="M4 9h4l5-4v14l-5-4H4z"/>',
+  volHigh: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>',
 };
 
 const sp = {
   tokens: null, player: null, devices: [], playlists: [], error: '', selectedDevice: null,
+  volDragging: false, volPending: null, volTimer: null,
+  needsRelogin() { return !!this.tokens && !(this.tokens.scope || '').includes('user-library-read'); },
 
   loadTokens() { try { this.tokens = JSON.parse(localStorage.getItem('dash.spotify') || 'null'); } catch (e) { this.tokens = null; } },
   saveTokens() { try { localStorage.setItem('dash.spotify', JSON.stringify(this.tokens)); } catch (e) {} },
@@ -494,6 +522,7 @@ const sp = {
     this.tokens = {
       access: j.access_token,
       refresh: j.refresh_token || this.tokens?.refresh,
+      scope: j.scope || this.tokens?.scope || '',
       exp: Date.now() + (j.expires_in - 60) * 1000,
     };
     this.saveTokens();
@@ -538,6 +567,7 @@ const sp = {
     try {
       const [player, dev] = await Promise.all([this.api('/me/player'), this.api('/me/player/devices')]);
       this.player = player;
+      if (this.volPending !== null && player?.device) player.device.volume_percent = this.volPending;
       this.devices = dev?.devices || [];
       if (player?.device?.id) this.selectedDevice = player.device.id;
       if (!this.devices.find((d) => d.id === this.selectedDevice)) this.selectedDevice = this.devices[0]?.id || null;
@@ -548,7 +578,7 @@ const sp = {
 
   async refreshPlaylists() {
     if (!this.tokens) return;
-    try { this.playlists = (await this.api('/me/playlists?limit=8'))?.items?.filter(Boolean) || []; }
+    try { this.playlists = (await this.api('/me/playlists?limit=50'))?.items?.filter(Boolean) || []; }
     catch (e) { this.playlists = []; }
     renderMusic();
   },
@@ -575,6 +605,28 @@ const sp = {
     const dev = this.selectedDevice ? '?device_id=' + this.selectedDevice : '';
     return this.act(() => this.api('/me/player/play' + dev, { method: 'PUT', body: JSON.stringify({ context_uri: uri }) }));
   },
+  playLiked() {
+    if (this.needsRelogin()) { this.error = 'Für Lieblingssongs einmal neu mit Spotify verbinden (Zahnrad → Spotify trennen → verbinden)'; renderMusic(); return; }
+    const dev = this.selectedDevice ? '?device_id=' + this.selectedDevice : '';
+    return this.act(async () => {
+      const pages = await Promise.all([0, 50].map((o) => this.api('/me/tracks?limit=50&offset=' + o).catch(() => null)));
+      const uris = pages.flatMap((pg) => pg?.items || []).map((it) => it.track?.uri).filter(Boolean);
+      if (!uris.length) throw new Error('Keine Lieblingssongs gefunden');
+      for (let i = uris.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [uris[i], uris[j]] = [uris[j], uris[i]]; }
+      await this.api('/me/player/play' + dev, { method: 'PUT', body: JSON.stringify({ uris }) });
+    });
+  },
+  setVolume(v) {
+    v = Math.max(0, Math.min(100, Math.round(v)));
+    this.volPending = v;
+    if (this.player?.device) this.player.device.volume_percent = v;
+    clearTimeout(this.volTimer);
+    this.volTimer = setTimeout(() => {
+      const dev = this.player?.device?.id ? '&device_id=' + this.player.device.id : '';
+      this.act(() => this.api('/me/player/volume?volume_percent=' + v + dev, { method: 'PUT' }))
+        .finally(() => { setTimeout(() => { this.volPending = null; }, 2500); });
+    }, 250);
+  },
 };
 
 function devIcon(type) {
@@ -586,6 +638,7 @@ function devIcon(type) {
 }
 
 function renderMusic() {
+  if (sp.volDragging) return;
   const box = $('music');
   if (!settings.spClient || !sp.tokens) {
     box.innerHTML = `
@@ -607,8 +660,19 @@ function renderMusic() {
   const devName = sp.player?.device?.name;
   const devices = sp.devices.map((d) => `
     <button type="button" class="chip ${d.id === sp.selectedDevice ? 'on' : ''}" data-sp="dev" data-id="${esc(d.id)}">${svg(devIcon(d.type), 18)}<span>${esc(d.name)}</span></button>`).join('');
-  const lists = sp.playlists.slice(0, 6).map((p) => `
-    <button type="button" class="chip" data-sp="list" data-uri="${esc(p.uri)}">${svg(SP_ICON.list, 18)}<span>${esc(p.name)}</span></button>`).join('');
+  const lists = `<button type="button" class="chip liked" data-sp="liked">${svg(SP_ICON.heart, 18, '#1ED760')}<span>Lieblingssongs</span></button>` +
+    sp.playlists.slice(0, 4).map((p) => `
+    <button type="button" class="chip" data-sp="list" data-uri="${esc(p.uri)}">${svg(SP_ICON.list, 18)}<span>${esc(p.name)}</span></button>`).join('') +
+    `<button type="button" class="chip more" data-sp="all">${svg(SP_ICON.grid, 18)}<span>Alle${sp.playlists.length ? ' (' + sp.playlists.length + ')' : ''}</span></button>`;
+  const dv = sp.player?.device;
+  const volOk = dv && dv.supports_volume !== false && typeof dv.volume_percent === 'number';
+  const vol = volOk ? `
+        <div class="vol">
+          <button type="button" class="vbtn" data-sp="voldown" aria-label="Leiser">${svg(SP_ICON.volLow, 18)}</button>
+          <input type="range" id="spVol" min="0" max="100" step="1" value="${dv.volume_percent}" aria-label="Lautstärke">
+          <button type="button" class="vbtn" data-sp="volup" aria-label="Lauter">${svg(SP_ICON.volHigh, 18)}</button>
+          <span class="vnum" id="spVolNum">${dv.volume_percent}</span>
+        </div>` : (dv ? `<div class="hint" style="margin-top:10px">Lautstärke lässt sich auf ${esc(dv.name)} nicht per Spotify regeln.</div>` : '');
   box.innerHTML = `
     <div class="np">
       ${img ? `<img class="cover" src="${esc(img)}" alt="">` : `<div class="cover"></div>`}
@@ -621,13 +685,15 @@ function renderMusic() {
           <button type="button" class="cbtn main" data-sp="play" aria-label="${playing ? 'Pause' : 'Abspielen'}">${svg(playing ? SP_ICON.pause : SP_ICON.play, 22)}</button>
           <button type="button" class="cbtn" data-sp="next" aria-label="Weiter">${svg(SP_ICON.next, 20)}</button>
         </div>
+        ${vol}
       </div>
     </div>
     <div class="music-side">
       <div class="label">Abspielen auf</div>
       <div class="chips">${devices || '<div class="empty" style="padding:0">Keine Geräte gefunden – öffne Spotify auf dem Gerät oder weck den Lautsprecher auf.</div>'}</div>
-      <div class="label" style="margin-top:4px">Playlists</div>
-      <div class="chips">${lists || '<div class="empty" style="padding:0">Keine Playlists</div>'}</div>
+      <div class="label" style="margin-top:4px">Musik</div>
+      <div class="chips">${lists}</div>
+      ${sp.needsRelogin() ? `<div class="hint" style="margin:0">Neu: Lieblingssongs brauchen eine neue Freigabe. <button type="button" class="chip" style="display:inline-flex;height:36px;margin-left:6px" data-sp="relogin"><span>Neu verbinden</span></button></div>` : ''}
       ${sp.error ? `<div class="hint" style="color:var(--orange);margin:0">${esc(sp.error)}</div>` : ''}
     </div>`;
 }
@@ -641,8 +707,37 @@ document.addEventListener('click', (e) => {
   else if (a === 'next') sp.next();
   else if (a === 'prev') sp.prev();
   else if (a === 'dev') sp.transfer(b.dataset.id);
-  else if (a === 'list') sp.playList(b.dataset.uri);
+  else if (a === 'list') { sp.playList(b.dataset.uri); if ($('spLists').open) $('spLists').close(); }
+  else if (a === 'liked') { sp.playLiked(); if ($('spLists').open) $('spLists').close(); }
+  else if (a === 'all') openPlaylists();
+  else if (a === 'relogin') { sp.clearTokens(); sp.login(); }
+  else if (a === 'volup') { sp.setVolume((sp.player?.device?.volume_percent ?? 50) + 10); renderMusic(); }
+  else if (a === 'voldown') { sp.setVolume((sp.player?.device?.volume_percent ?? 50) - 10); renderMusic(); }
 });
+
+// Lautstärke-Regler: während des Ziehens nicht neu zeichnen
+document.addEventListener('pointerdown', (e) => { if (e.target.id === 'spVol') sp.volDragging = true; });
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'spVol') return;
+  sp.volDragging = true;
+  $('spVolNum').textContent = e.target.value;
+  sp.setVolume(Number(e.target.value));
+});
+['pointerup', 'pointercancel', 'change'].forEach((ev) => document.addEventListener(ev, (e) => {
+  if (e.target.id === 'spVol' || ev !== 'change') { if (sp.volDragging) { sp.volDragging = false; setTimeout(renderMusic, 50); } }
+}));
+
+function openPlaylists() {
+  const grid = $('spListsGrid');
+  const liked = `<button type="button" class="pl" data-sp="liked"><div class="ph" style="background:linear-gradient(135deg,#4B2BD6,#9AE6C0)">${svg(SP_ICON.heart, 48, '#fff')}</div><span>Lieblingssongs</span><small>Zufällig gemischt</small></button>`;
+  grid.innerHTML = liked + sp.playlists.map((p) => {
+    const img = p.images?.[0]?.url;
+    const count = p.tracks?.total ?? p.items?.total;
+    return `<button type="button" class="pl" data-sp="list" data-uri="${esc(p.uri)}">${img ? `<img src="${esc(img)}" alt="">` : `<div class="ph">${svg(SP_ICON.list, 40)}</div>`}<span>${esc(p.name)}</span><small>${count != null ? count + ' Songs' : 'Playlist'}</small></button>`;
+  }).join('');
+  $('spLists').showModal();
+}
+$('spListsClose').addEventListener('click', () => $('spLists').close());
 $('spLogout').addEventListener('click', () => { sp.clearTokens(); renderMusic(); });
 
 (async () => {
